@@ -39,8 +39,8 @@ function Column({
       <dl className="mt-3 space-y-1 text-xs">
         <Row label="Trades" value={String(stats.trades)} />
         <Row
-          label="W / L / S"
-          value={`${stats.wins} / ${stats.losses} / ${stats.scratches}`}
+          label="W / L / BE"
+          value={`${stats.wins} / ${stats.losses} / ${stats.breakevens}`}
         />
         <Row
           label="Net P&L"

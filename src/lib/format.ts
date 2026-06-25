@@ -54,3 +54,19 @@ export function fmtDayLabel(d: Date, todayRef: Date = new Date()): string {
     year: d.getFullYear() === todayRef.getFullYear() ? undefined : "numeric",
   });
 }
+
+/** Human label for a trade result value. */
+export function resultLabel(result: string): string {
+  switch (result) {
+    case "win":
+      return "Win";
+    case "loss":
+      return "Loss";
+    case "breakeven":
+      return "Breakeven";
+    case "no_trade":
+      return "No trade";
+    default:
+      return result;
+  }
+}

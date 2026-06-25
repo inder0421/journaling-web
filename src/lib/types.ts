@@ -1,4 +1,4 @@
-export type TradeResult = "win" | "loss" | "scratch";
+export type TradeResult = "win" | "loss" | "breakeven" | "no_trade";
 
 /** A single logged trade. `amount` is always a positive dollar magnitude;
  *  signed P&L is derived from `result` (see calc.ts → pnlOf). */

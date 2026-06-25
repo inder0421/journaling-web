@@ -26,18 +26,24 @@ export default function TradeForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const isNoTrade = result === "no_trade";
+  const needsAmount = result === "win" || result === "loss";
+
   const usingCustom = instrument === "__custom__";
   const resolvedInstrument = usingCustom
     ? customInstrument.trim().toUpperCase()
     : instrument;
   const amountNum = Number(amount);
-  const amountValid = result === "scratch" || (amount !== "" && amountNum > 0);
+  const amountValid = !needsAmount || (amount !== "" && amountNum > 0);
 
-  const ready =
-    setupMet !== null &&
-    result !== null &&
-    amountValid &&
-    resolvedInstrument.length > 0;
+  // A no-trade is restraint, not a trade: setup, amount and instrument are
+  // all optional. A taken trade requires the full set.
+  const ready = isNoTrade
+    ? true
+    : setupMet !== null &&
+      result !== null &&
+      amountValid &&
+      resolvedInstrument.length > 0;
 
   function reset() {
     setSetupMet(null);
@@ -50,16 +56,17 @@ export default function TradeForm({
   }
 
   async function doSave() {
-    if (!ready || setupMet === null || result === null) return;
+    if (!ready || result === null) return;
+    if (!isNoTrade && setupMet === null) return;
     setBusy(true);
     setError(null);
     try {
       await onSubmit({
-        setup_met: setupMet,
+        setup_met: setupMet ?? false, // placeholder for no-trades
         result,
-        amount: result === "scratch" ? 0 : Math.abs(amountNum),
+        amount: needsAmount ? Math.abs(amountNum) : 0,
         entry_reason: reason.trim(),
-        instrument: resolvedInstrument,
+        instrument: resolvedInstrument || "—",
       });
       reset();
     } catch (err) {
@@ -72,12 +79,18 @@ export default function TradeForm({
   function handlePrimary(e: React.FormEvent) {
     e.preventDefault();
     if (!ready) return;
-    // Friction step for impulse trades.
-    if (setupMet === false && !confirming) {
+    // Friction step for impulse trades you actually take (never for a no-trade).
+    if (!isNoTrade && setupMet === false && !confirming) {
       setConfirming(true);
       return;
     }
     void doSave();
+  }
+
+  function pickResult(r: TradeResult) {
+    setResult(r);
+    setConfirming(false);
+    if (r !== "win" && r !== "loss") setAmount("");
   }
 
   return (
@@ -93,11 +106,13 @@ export default function TradeForm({
 
       <form onSubmit={handlePrimary} className="p-4">
         <fieldset disabled={locked || busy} className="space-y-5">
-          {/* Setup criteria — required, no default */}
-          <div>
+          {/* Setup criteria — required for a taken trade, optional for a no-trade */}
+          <div className={isNoTrade ? "opacity-50" : ""}>
             <Label>
               Setup criteria met?{" "}
-              <span className="font-normal text-faint">required</span>
+              <span className="font-normal text-faint">
+                {isNoTrade ? "optional" : "required"}
+              </span>
             </Label>
             <div className="grid grid-cols-2 gap-2">
               <Toggle
@@ -123,62 +138,75 @@ export default function TradeForm({
             </div>
           </div>
 
-          {/* Result */}
+          {/* Result — Win / Loss / Breakeven / No trade */}
           <div>
             <Label>Result</Label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               <Seg
                 active={result === "win"}
                 tone="win"
-                onClick={() => setResult("win")}
+                onClick={() => pickResult("win")}
                 label="Win"
               />
               <Seg
                 active={result === "loss"}
                 tone="loss"
-                onClick={() => setResult("loss")}
+                onClick={() => pickResult("loss")}
                 label="Loss"
               />
               <Seg
-                active={result === "scratch"}
-                tone="scratch"
-                onClick={() => {
-                  setResult("scratch");
-                  setAmount("");
-                }}
-                label="Scratch"
+                active={result === "breakeven"}
+                tone="breakeven"
+                onClick={() => pickResult("breakeven")}
+                label="Breakeven"
+              />
+              <Seg
+                active={result === "no_trade"}
+                tone="notrade"
+                onClick={() => pickResult("no_trade")}
+                label="No trade"
               />
             </div>
+            {isNoTrade && (
+              <p className="mt-2 text-xs text-accent">
+                Logging restraint — a trade you chose not to take. It won&apos;t
+                count against your daily trade limit.
+              </p>
+            )}
           </div>
 
-          {/* Amount */}
-          <div>
-            <Label>
-              Amount{" "}
-              <span className="font-normal text-faint">
-                {result === "scratch" ? "breakeven" : "dollars, P&L size"}
-              </span>
-            </Label>
-            <div className="relative">
-              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted">
-                $
-              </span>
-              <input
-                inputMode="decimal"
-                value={result === "scratch" ? "0" : amount}
-                onChange={(e) =>
-                  setAmount(e.target.value.replace(/[^0-9.]/g, ""))
-                }
-                placeholder="0"
-                disabled={result === "scratch"}
-                className="w-full rounded-md border border-line bg-bg py-3 pl-7 pr-3 text-base tnum text-fg placeholder:text-faint focus:border-accent disabled:opacity-50"
-              />
+          {/* Amount — only for win/loss */}
+          {needsAmount && (
+            <div>
+              <Label>
+                Amount{" "}
+                <span className="font-normal text-faint">dollars, P&L size</span>
+              </Label>
+              <div className="relative">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted">
+                  $
+                </span>
+                <input
+                  inputMode="decimal"
+                  value={amount}
+                  onChange={(e) =>
+                    setAmount(e.target.value.replace(/[^0-9.]/g, ""))
+                  }
+                  placeholder="0"
+                  className="w-full rounded-md border border-line bg-bg py-3 pl-7 pr-3 text-base tnum text-fg placeholder:text-faint focus:border-accent"
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Instrument */}
           <div>
-            <Label>Instrument</Label>
+            <Label>
+              Instrument{" "}
+              {isNoTrade && (
+                <span className="font-normal text-faint">optional</span>
+              )}
+            </Label>
             <div className="flex flex-wrap gap-2">
               {PRESETS.map((ins) => (
                 <Chip
@@ -207,13 +235,17 @@ export default function TradeForm({
           {/* Entry reason */}
           <div>
             <Label>
-              Entry reason{" "}
+              {isNoTrade ? "Why did you pass?" : "Entry reason"}{" "}
               <span className="font-normal text-faint">short</span>
             </Label>
             <input
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="What was the trigger?"
+              placeholder={
+                isNoTrade
+                  ? "What kept you out? (e.g. no setup, chasing)"
+                  : "What was the trigger?"
+              }
               maxLength={140}
               className="w-full rounded-md border border-line bg-bg px-3 py-3 text-base text-fg placeholder:text-faint focus:border-accent"
             />
@@ -264,7 +296,13 @@ export default function TradeForm({
             disabled={locked || busy || !ready}
             className="mt-5 w-full rounded-md bg-accent px-3 py-3 text-base font-medium text-white disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {locked ? "Locked" : busy ? "Saving…" : "Log trade"}
+            {locked
+              ? "Locked"
+              : busy
+                ? "Saving…"
+                : isNoTrade
+                  ? "Log no-trade"
+                  : "Log trade"}
           </button>
         )}
       </form>
@@ -283,7 +321,8 @@ function Label({ children }: { children: React.ReactNode }) {
 const toneRing: Record<string, string> = {
   win: "border-win bg-win/15 text-win",
   loss: "border-loss bg-loss/15 text-loss",
-  scratch: "border-scratch bg-scratch/15 text-fg",
+  breakeven: "border-scratch bg-scratch/15 text-fg",
+  notrade: "border-accent bg-accent/15 text-accent",
 };
 
 function Toggle({

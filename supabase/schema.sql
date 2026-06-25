@@ -16,7 +16,7 @@ create table if not exists public.trades (
   created_at   timestamptz not null default now(),
   setup_met    boolean not null,
   entry_reason text not null default '',
-  result       text not null check (result in ('win', 'loss', 'scratch')),
+  result       text not null check (result in ('win', 'loss', 'breakeven', 'no_trade')),
   amount       numeric not null default 0 check (amount >= 0),
   instrument   text not null default ''
 );

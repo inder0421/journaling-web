@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Trade } from "@/lib/types";
 import { groupByDay, groupByWeek, pnlOf } from "@/lib/calc";
-import { fmtDayLabel, fmtTime, money, signedMoney } from "@/lib/format";
+import { fmtDayLabel, fmtTime, money, resultLabel, signedMoney } from "@/lib/format";
 
 function netColor(n: number): string {
   if (n > 0) return "text-win";
@@ -14,7 +14,8 @@ function netColor(n: number): string {
 const resultTone: Record<string, string> = {
   win: "text-win",
   loss: "text-loss",
-  scratch: "text-scratch",
+  breakeven: "text-scratch",
+  no_trade: "text-accent",
 };
 
 function TradeRow({
@@ -35,9 +36,9 @@ function TradeRow({
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium">{t.instrument}</span>
           <span className={`text-xs font-medium uppercase ${resultTone[t.result]}`}>
-            {t.result}
+            {resultLabel(t.result)}
           </span>
-          {!t.setup_met && (
+          {!t.setup_met && t.result !== "no_trade" && (
             <span className="rounded border border-loss/40 px-1 py-px text-[10px] font-medium uppercase tracking-wide text-loss">
               impulse
             </span>
@@ -48,7 +49,11 @@ function TradeRow({
         )}
       </div>
       <div className={`shrink-0 text-sm font-medium tnum ${netColor(pnl)}`}>
-        {t.result === "scratch" ? "$0" : signedMoney(pnl)}
+        {t.result === "no_trade"
+          ? "—"
+          : t.result === "breakeven"
+            ? "$0"
+            : signedMoney(pnl)}
       </div>
       {confirm ? (
         <button
@@ -127,8 +132,9 @@ export default function History({
                   {fmtDayLabel(d.date, now)}
                 </div>
                 <div className="text-xs text-faint">
-                  {d.trades.length} trade{d.trades.length === 1 ? "" : "s"} ·{" "}
+                  {d.takenCount} trade{d.takenCount === 1 ? "" : "s"} ·{" "}
                   {d.onCount} on · {d.offCount} impulse
+                  {d.noCount > 0 ? ` · ${d.noCount} no-trade` : ""}
                 </div>
               </div>
               <div className={`text-base font-semibold tnum ${netColor(d.pnl)}`}>
@@ -153,8 +159,9 @@ export default function History({
               <div>
                 <div className="text-sm font-medium">{w.label}</div>
                 <div className="text-xs text-faint">
-                  {w.trades} trade{w.trades === 1 ? "" : "s"} · {w.onCount} on ·{" "}
-                  {w.offCount} impulse
+                  {w.takenCount} trade{w.takenCount === 1 ? "" : "s"} ·{" "}
+                  {w.onCount} on · {w.offCount} impulse
+                  {w.noCount > 0 ? ` · ${w.noCount} no-trade` : ""}
                 </div>
               </div>
               <div className={`text-base font-semibold tnum ${netColor(w.pnl)}`}>

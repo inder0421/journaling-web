@@ -9,6 +9,7 @@ import {
   dailyPnl,
   lockoutState,
 } from "@/lib/calc";
+import { coachInsights } from "@/lib/coach";
 import {
   addTrade,
   deleteTrade,
@@ -24,6 +25,7 @@ import StatCards from "./StatCards";
 import TradeForm from "./TradeForm";
 import LockoutBanner from "./LockoutBanner";
 import Analytics from "./Analytics";
+import Coach from "./Coach";
 import History from "./History";
 import RulesEditor from "./RulesEditor";
 
@@ -81,6 +83,10 @@ export default function Dashboard({
   const balance = useMemo(() => currentBalance(trades, rules), [trades, rules]);
   const today = useMemo(() => dailyPnl(trades, now), [trades, now]);
   const split = useMemo(() => criteriaSplit(trades), [trades]);
+  const insights = useMemo(
+    () => coachInsights(trades, rules, now),
+    [trades, rules, now]
+  );
 
   const handleAdd = useCallback(
     async (t: NewTrade) => {
@@ -132,6 +138,8 @@ export default function Dashboard({
           lock={lock}
           rules={rules}
         />
+
+        <Coach insights={insights} />
 
         <TradeForm
           locked={lock.locked}

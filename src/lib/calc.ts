@@ -1,11 +1,23 @@
 import { Rules, Trade } from "./types";
 
-/** Signed P&L for a trade. Wins add, losses subtract, scratches are flat. */
+/** Signed P&L for a trade. Wins add, losses subtract; breakeven and
+ *  no-trade are flat (no money changed hands). */
 export function pnlOf(t: Trade): number {
   const amt = Math.abs(t.amount || 0);
   if (t.result === "win") return amt;
   if (t.result === "loss") return -amt;
-  return 0; // scratch = breakeven
+  return 0; // breakeven or no_trade
+}
+
+/** A "taken" trade is one you actually entered (win/loss/breakeven).
+ *  A no-trade is the opposite — restraint — and is excluded from trade
+ *  counts, the lockout, and win-rate analytics. */
+export function isTakenTrade(t: Trade): boolean {
+  return t.result !== "no_trade";
+}
+
+export function takenTrades(trades: Trade[]): Trade[] {
+  return trades.filter(isTakenTrade);
 }
 
 /** True if two dates fall on the same calendar day in the local timezone. */
@@ -29,13 +41,15 @@ export function tradesOnDay(trades: Trade[], now: Date): Trade[] {
   return trades.filter((t) => isSameLocalDay(new Date(t.created_at), now));
 }
 
-/** Net P&L for today (local day). */
+/** Net P&L for today (local day). No-trades contribute 0. */
 export function dailyPnl(trades: Trade[], now: Date = new Date()): number {
   return tradesOnDay(trades, now).reduce((sum, t) => sum + pnlOf(t), 0);
 }
 
+/** Number of trades actually TAKEN today (excludes no-trades), which is
+ *  what the max-trades lockout counts against. */
 export function tradeCountToday(trades: Trade[], now: Date = new Date()): number {
-  return tradesOnDay(trades, now).length;
+  return tradesOnDay(trades, now).filter(isTakenTrade).length;
 }
 
 export interface LockoutState {
@@ -51,7 +65,8 @@ export interface LockoutState {
 /**
  * The hard-lockout decision. The form must be fully disabled when `locked`.
  * Daily stop is hit when today's NET P&L is at or below the negative stop.
- * Max trades is hit when today's trade count reaches the configured cap.
+ * Max trades is hit when today's TAKEN-trade count reaches the configured cap.
+ * No-trades never lock you out — restraint should never be penalized.
  */
 export function lockoutState(
   trades: Trade[],
@@ -94,6 +109,11 @@ export function netPnl(trades: Trade[]): number {
   return trades.reduce((sum, t) => sum + pnlOf(t), 0);
 }
 
+/** Count of no-trades (restraint) logged all-time. */
+export function noTradeCount(trades: Trade[]): number {
+  return trades.filter((t) => t.result === "no_trade").length;
+}
+
 /** Live account balance = starting balance + all-time net P&L. */
 export function currentBalance(trades: Trade[], rules: Rules): number {
   return rules.starting_balance + netPnl(trades);
@@ -116,7 +136,7 @@ export interface SplitStats {
   trades: number;
   wins: number;
   losses: number;
-  scratches: number;
+  breakevens: number;
   /** wins / (wins + losses); null when no decisive trades yet. */
   winRate: number | null;
   netPnl: number;
@@ -125,36 +145,40 @@ export interface SplitStats {
 function statsFor(trades: Trade[]): SplitStats {
   const wins = trades.filter((t) => t.result === "win").length;
   const losses = trades.filter((t) => t.result === "loss").length;
-  const scratches = trades.filter((t) => t.result === "scratch").length;
+  const breakevens = trades.filter((t) => t.result === "breakeven").length;
   const decisive = wins + losses;
   return {
     trades: trades.length,
     wins,
     losses,
-    scratches,
+    breakevens,
     winRate: decisive > 0 ? wins / decisive : null,
     netPnl: netPnl(trades),
   };
 }
 
-/** On-criteria vs off-criteria (impulse) breakdown — the headline contrast. */
+/** On-criteria vs off-criteria (impulse) breakdown — the headline contrast.
+ *  Only TAKEN trades count; no-trades are excluded. */
 export function criteriaSplit(trades: Trade[]): {
   onCriteria: SplitStats;
   offCriteria: SplitStats;
 } {
+  const taken = takenTrades(trades);
   return {
-    onCriteria: statsFor(trades.filter((t) => t.setup_met)),
-    offCriteria: statsFor(trades.filter((t) => !t.setup_met)),
+    onCriteria: statsFor(taken.filter((t) => t.setup_met)),
+    offCriteria: statsFor(taken.filter((t) => !t.setup_met)),
   };
 }
 
 export interface DaySummary {
   key: string; // YYYY-MM-DD
   date: Date;
-  trades: Trade[];
+  trades: Trade[]; // all entries that day, incl. no-trades (for the row list)
   pnl: number;
-  onCount: number;
-  offCount: number;
+  takenCount: number; // trades actually taken
+  onCount: number; // taken & on-setup
+  offCount: number; // taken & off-setup (impulse)
+  noCount: number; // no-trades (restraint)
 }
 
 /** Group trades by local day, most recent first. */
@@ -168,6 +192,7 @@ export function groupByDay(trades: Trade[]): DaySummary[] {
   }
   const out: DaySummary[] = [];
   for (const [key, dayTrades] of map) {
+    const taken = dayTrades.filter(isTakenTrade);
     out.push({
       key,
       date: new Date(dayTrades[0].created_at),
@@ -176,8 +201,10 @@ export function groupByDay(trades: Trade[]): DaySummary[] {
           new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       ),
       pnl: dayTrades.reduce((s, t) => s + pnlOf(t), 0),
-      onCount: dayTrades.filter((t) => t.setup_met).length,
-      offCount: dayTrades.filter((t) => !t.setup_met).length,
+      takenCount: taken.length,
+      onCount: taken.filter((t) => t.setup_met).length,
+      offCount: taken.filter((t) => !t.setup_met).length,
+      noCount: dayTrades.length - taken.length,
     });
   }
   return out.sort((a, b) => b.key.localeCompare(a.key));
@@ -187,9 +214,10 @@ export interface WeekSummary {
   key: string; // YYYY-Www
   label: string;
   pnl: number;
-  trades: number;
+  takenCount: number;
   onCount: number;
   offCount: number;
+  noCount: number;
 }
 
 function weekKey(d: Date): { key: string; label: string } {
@@ -220,11 +248,23 @@ export function groupByWeek(trades: Trade[]): WeekSummary[] {
     const { key, label } = weekKey(new Date(t.created_at));
     const cur =
       map.get(key) ??
-      ({ key, label, pnl: 0, trades: 0, onCount: 0, offCount: 0 } as WeekSummary);
+      ({
+        key,
+        label,
+        pnl: 0,
+        takenCount: 0,
+        onCount: 0,
+        offCount: 0,
+        noCount: 0,
+      } as WeekSummary);
     cur.pnl += pnlOf(t);
-    cur.trades += 1;
-    cur.onCount += t.setup_met ? 1 : 0;
-    cur.offCount += t.setup_met ? 0 : 1;
+    if (isTakenTrade(t)) {
+      cur.takenCount += 1;
+      cur.onCount += t.setup_met ? 1 : 0;
+      cur.offCount += t.setup_met ? 0 : 1;
+    } else {
+      cur.noCount += 1;
+    }
     map.set(key, cur);
   }
   return [...map.values()].sort((a, b) => b.key.localeCompare(a.key));
