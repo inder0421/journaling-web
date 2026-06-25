@@ -114,7 +114,7 @@ export default function Dashboard({
   }, []);
 
   return (
-    <div className="mx-auto max-w-md px-4 pb-16 pt-5 sm:pt-8">
+    <div className="mx-auto w-full max-w-md px-4 pb-16 pt-5 sm:pt-8 lg:max-w-6xl lg:px-8 2xl:max-w-[90rem]">
       <Header
         isLocal={isLocal}
         email={email}
@@ -128,31 +128,40 @@ export default function Dashboard({
         </p>
       )}
 
-      <div className="mt-5 space-y-5">
-        {lock.locked && <LockoutBanner lock={lock} rules={rules} />}
+      {lock.locked && (
+        <div className="mt-5">
+          <LockoutBanner lock={lock} rules={rules} />
+        </div>
+      )}
 
-        <StatCards
-          dailyPnl={today}
-          cushion={cushion}
-          balance={balance}
-          lock={lock}
-          rules={rules}
-        />
+      {/* Single column on mobile; wide two-column dashboard on desktop. */}
+      <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-12 lg:items-start">
+        <div className="space-y-5 lg:col-span-5">
+          <StatCards
+            dailyPnl={today}
+            cushion={cushion}
+            balance={balance}
+            lock={lock}
+            rules={rules}
+          />
 
-        <Coach insights={insights} />
+          <TradeForm
+            locked={lock.locked}
+            offStats={split.offCriteria}
+            onSubmit={handleAdd}
+          />
+        </div>
 
-        <TradeForm
-          locked={lock.locked}
-          offStats={split.offCriteria}
-          onSubmit={handleAdd}
-        />
+        <div className="space-y-5 lg:col-span-7">
+          <Coach insights={insights} />
 
-        <Analytics
-          onCriteria={split.onCriteria}
-          offCriteria={split.offCriteria}
-        />
+          <Analytics
+            onCriteria={split.onCriteria}
+            offCriteria={split.offCriteria}
+          />
 
-        <History trades={trades} onDelete={handleDelete} />
+          <History trades={trades} onDelete={handleDelete} />
+        </div>
       </div>
 
       <p className="mt-8 text-center text-xs text-faint">
