@@ -33,3 +33,32 @@ export const INSTRUMENTS = ["ES", "NQ", "MES", "MNQ"] as const;
 export type NewTrade = Omit<Trade, "id" | "created_at"> & {
   created_at?: string;
 };
+
+/** A trading account for the multi-account copy tab. The "lead" account is the
+ *  one you trade; followers mirror it, scaled by `multiplier` and capped at
+ *  `max_contracts` (prop accounts have hard position limits). */
+export interface CopyAccount {
+  id: string;
+  created_at: string;
+  firm: string; // e.g. "Lucid", "Alpha Futures"
+  label: string; // nickname / account number
+  size: number; // account size in dollars (reference for scaling)
+  multiplier: number; // contracts per 1 lead contract (lead is effectively 1)
+  max_contracts: number; // hard cap; 0 = no cap
+  is_lead: boolean;
+  active: boolean; // include in the copy plan
+}
+
+export type NewCopyAccount = Omit<CopyAccount, "id" | "created_at"> & {
+  created_at?: string;
+};
+
+export const DEFAULT_ACCOUNT: Omit<CopyAccount, "id" | "created_at"> = {
+  firm: "",
+  label: "",
+  size: 50000,
+  multiplier: 1,
+  max_contracts: 0,
+  is_lead: false,
+  active: true,
+};

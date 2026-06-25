@@ -1,5 +1,12 @@
 import { getSupabase, isSupabaseConfigured } from "./supabase";
-import { DEFAULT_RULES, NewTrade, Rules, Trade } from "./types";
+import {
+  CopyAccount,
+  DEFAULT_RULES,
+  NewCopyAccount,
+  NewTrade,
+  Rules,
+  Trade,
+} from "./types";
 
 /*
   Data layer. One async interface, two backends:
@@ -11,6 +18,7 @@ import { DEFAULT_RULES, NewTrade, Rules, Trade } from "./types";
 
 const LS_TRADES = "dj.trades.v1";
 const LS_RULES = "dj.rules.v1";
+const LS_ACCOUNTS = "dj.accounts.v1";
 
 function lsRead<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
@@ -141,6 +149,114 @@ export async function saveRules(rules: Rules): Promise<Rules> {
   return clean;
 }
 
+// -------------------------------------------------------------- accounts
+
+const ACCT_COLS =
+  "id, created_at, firm, label, size, multiplier, max_contracts, is_lead, active";
+
+export async function listAccounts(): Promise<CopyAccount[]> {
+  if (isSupabaseConfigured) {
+    const sb = getSupabase()!;
+    const { data, error } = await sb
+      .from("copy_accounts")
+      .select(ACCT_COLS)
+      .order("created_at", { ascending: true });
+    if (error) throw error;
+    return (data ?? []) as CopyAccount[];
+  }
+  return lsRead<CopyAccount[]>(LS_ACCOUNTS, []);
+}
+
+export async function addAccount(input: NewCopyAccount): Promise<CopyAccount> {
+  const acct: CopyAccount = {
+    id: newId(),
+    created_at: input.created_at ?? new Date().toISOString(),
+    firm: input.firm.trim(),
+    label: input.label.trim(),
+    size: Number(input.size) || 0,
+    multiplier: Number(input.multiplier) || 0,
+    max_contracts: Math.max(0, Math.floor(Number(input.max_contracts) || 0)),
+    is_lead: !!input.is_lead,
+    active: input.active !== false,
+  };
+  if (isSupabaseConfigured) {
+    const sb = getSupabase()!;
+    const { data, error } = await sb
+      .from("copy_accounts")
+      .insert({
+        created_at: acct.created_at,
+        firm: acct.firm,
+        label: acct.label,
+        size: acct.size,
+        multiplier: acct.multiplier,
+        max_contracts: acct.max_contracts,
+        is_lead: acct.is_lead,
+        active: acct.active,
+      })
+      .select(ACCT_COLS)
+      .single();
+    if (error) throw error;
+    return data as CopyAccount;
+  }
+  const all = lsRead<CopyAccount[]>(LS_ACCOUNTS, []);
+  all.push(acct);
+  lsWrite(LS_ACCOUNTS, all);
+  return acct;
+}
+
+export async function updateAccount(
+  id: string,
+  patch: Partial<Omit<CopyAccount, "id" | "created_at">>
+): Promise<void> {
+  if (isSupabaseConfigured) {
+    const sb = getSupabase()!;
+    const { error } = await sb.from("copy_accounts").update(patch).eq("id", id);
+    if (error) throw error;
+    return;
+  }
+  const all = lsRead<CopyAccount[]>(LS_ACCOUNTS, []).map((a) =>
+    a.id === id ? { ...a, ...patch } : a
+  );
+  lsWrite(LS_ACCOUNTS, all);
+}
+
+export async function deleteAccount(id: string): Promise<void> {
+  if (isSupabaseConfigured) {
+    const sb = getSupabase()!;
+    const { error } = await sb.from("copy_accounts").delete().eq("id", id);
+    if (error) throw error;
+    return;
+  }
+  lsWrite(
+    LS_ACCOUNTS,
+    lsRead<CopyAccount[]>(LS_ACCOUNTS, []).filter((a) => a.id !== id)
+  );
+}
+
+/** Make exactly one account the lead (clears the flag on the rest). */
+export async function setLeadAccount(id: string): Promise<void> {
+  if (isSupabaseConfigured) {
+    const sb = getSupabase()!;
+    // RLS scopes both updates to the current user's rows.
+    const { error: e1 } = await sb
+      .from("copy_accounts")
+      .update({ is_lead: false })
+      .eq("is_lead", true);
+    if (e1) throw e1;
+    const { error: e2 } = await sb
+      .from("copy_accounts")
+      .update({ is_lead: true })
+      .eq("id", id);
+    if (e2) throw e2;
+    return;
+  }
+  const all = lsRead<CopyAccount[]>(LS_ACCOUNTS, []).map((a) => ({
+    ...a,
+    is_lead: a.id === id,
+  }));
+  lsWrite(LS_ACCOUNTS, all);
+}
+
 // ------------------------------------------------------------- realtime
 
 /** Subscribe to remote trade/rule changes for live cross-device sync.
@@ -150,7 +266,8 @@ export function subscribeChanges(onChange: () => void): () => void {
     // Cross-tab sync in local mode.
     if (typeof window === "undefined") return () => {};
     const handler = (e: StorageEvent) => {
-      if (e.key === LS_TRADES || e.key === LS_RULES) onChange();
+      if (e.key === LS_TRADES || e.key === LS_RULES || e.key === LS_ACCOUNTS)
+        onChange();
     };
     window.addEventListener("storage", handler);
     return () => window.removeEventListener("storage", handler);
@@ -161,6 +278,7 @@ export function subscribeChanges(onChange: () => void): () => void {
     .channel("dj-changes")
     .on("postgres_changes", { event: "*", schema: "public", table: "trades" }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "rules" }, onChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "copy_accounts" }, onChange)
     .subscribe();
 
   return () => {

@@ -28,6 +28,7 @@ import Analytics from "./Analytics";
 import Coach from "./Coach";
 import History from "./History";
 import RulesEditor from "./RulesEditor";
+import CopyTab from "./CopyTab";
 
 export default function Dashboard({
   isLocal,
@@ -42,6 +43,7 @@ export default function Dashboard({
   const [error, setError] = useState<string | null>(null);
   const [rulesOpen, setRulesOpen] = useState(false);
   const [now, setNow] = useState(() => new Date());
+  const [view, setView] = useState<"journal" | "copy">("journal");
 
   const refetch = useCallback(async () => {
     try {
@@ -128,14 +130,37 @@ export default function Dashboard({
         </p>
       )}
 
-      {lock.locked && (
+      <nav className="mt-5 flex gap-1 border-b border-line">
+        {(["journal", "copy"] as const).map((v) => (
+          <button
+            key={v}
+            onClick={() => setView(v)}
+            className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium capitalize transition-colors ${
+              view === v
+                ? "border-accent text-fg"
+                : "border-transparent text-muted hover:text-fg"
+            }`}
+          >
+            {v}
+          </button>
+        ))}
+      </nav>
+
+      {view === "copy" && (
+        <div className="mt-5">
+          <CopyTab />
+        </div>
+      )}
+
+      {view === "journal" && lock.locked && (
         <div className="mt-5">
           <LockoutBanner lock={lock} rules={rules} />
         </div>
       )}
 
       {/* Single column on mobile; wide two-column dashboard on desktop. */}
-      <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-12 lg:items-start">
+      {view === "journal" && (
+        <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-12 lg:items-start">
         <div className="space-y-5 lg:col-span-5">
           <StatCards
             dailyPnl={today}
@@ -162,7 +187,8 @@ export default function Dashboard({
 
           <History trades={trades} onDelete={handleDelete} />
         </div>
-      </div>
+        </div>
+      )}
 
       <p className="mt-8 text-center text-xs text-faint">
         {loading
