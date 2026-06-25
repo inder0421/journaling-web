@@ -98,6 +98,12 @@ stored in your browser (`localStorage`), single-device. The header shows a
 "Local only" badge. This is fine for trying it out, but for real use you want
 sync (below).
 
+> **Note on the compiler.** `dev` and `build` use Next.js's stable **Webpack**
+> compiler (`next dev --webpack`). Next 16's newer Turbopack engine can crash on
+> some Windows machines where antivirus/security agents kill its helper process
+> (`os error 10054`). Webpack avoids that entirely. If you want to try Turbopack,
+> run `npm run dev:turbo`.
+
 ---
 
 ## Enable real cross-device sync (Supabase)
