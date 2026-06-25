@@ -1,0 +1,70 @@
+@import "tailwindcss";
+
+/*
+  Clinical dark theme. Flat colors, no gradients. Muted, calm palette
+  chosen to sit quietly next to charts for hours. Semantic tokens below
+  generate Tailwind utilities (bg-surface, text-muted, border-line, ...).
+*/
+@theme {
+  --color-bg: #0a0b0d;
+  --color-surface: #131517;
+  --color-surface-2: #191c1f;
+  --color-line: #26292e;
+  --color-line-strong: #34383e;
+
+  --color-fg: #e7e9ea;
+  --color-muted: #9aa0a6;
+  --color-faint: #6b7176;
+
+  --color-win: #3fb27f;
+  --color-loss: #e05260;
+  --color-scratch: #8a9099;
+
+  --color-accent: #4a90d9;
+  --color-warn: #d98a3d;
+  --color-danger: #e0463c;
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+}
+
+html {
+  color-scheme: dark;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  /* tabular numbers everywhere so dollar figures don't jitter */
+  font-variant-numeric: tabular-nums;
+}
+
+/* Numeric/stat displays lock to tabular figures */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* Remove number input spinners — they get in the way on mobile */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/* Subtle, accessible focus ring */
+*:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: rgba(74, 144, 217, 0.3);
+}
