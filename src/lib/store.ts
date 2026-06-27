@@ -278,14 +278,25 @@ export function subscribeChanges(onChange: () => void): () => void {
   }
 
   const sb = getSupabase()!;
-  const channel = sb
-    .channel("dj-changes")
-    .on("postgres_changes", { event: "*", schema: "public", table: "trades" }, onChange)
-    .on("postgres_changes", { event: "*", schema: "public", table: "rules" }, onChange)
-    .on("postgres_changes", { event: "*", schema: "public", table: "copy_accounts" }, onChange)
-    .subscribe();
+  try {
+    // Unique channel name per subscriber: the dashboard and the Copy tab both
+    // subscribe, and two channels sharing a name collide once realtime is
+    // connected. A realtime hiccup must never break the page, so guard it.
+    const channel = sb
+      .channel(`dj-changes-${newId()}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "trades" }, onChange)
+      .on("postgres_changes", { event: "*", schema: "public", table: "rules" }, onChange)
+      .on("postgres_changes", { event: "*", schema: "public", table: "copy_accounts" }, onChange)
+      .subscribe();
 
-  return () => {
-    sb.removeChannel(channel);
-  };
+    return () => {
+      try {
+        sb.removeChannel(channel);
+      } catch {
+        /* ignore */
+      }
+    };
+  } catch {
+    return () => {};
+  }
 }
