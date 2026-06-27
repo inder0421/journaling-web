@@ -1,9 +1,13 @@
 -- ============================================================================
--- Discipline Journal — Supabase schema
+-- Discipline Journal — Supabase schema (NO-LOGIN / shared single-tenant)
 -- ----------------------------------------------------------------------------
--- Run this once in your Supabase project: SQL Editor → New query → paste →
--- Run. Safe to re-run (idempotent). Creates two owner-scoped tables with
--- Row Level Security so each signed-in user only ever sees their own data.
+-- This app has no sign-in. Every row shares one fixed owner id and the tables
+-- are openly readable/writable with the anon key. NOTE: anyone who has your
+-- project URL + anon key (which ships in the browser bundle) can read and write
+-- this data. That's the trade-off for skipping login — fine for a private
+-- personal tool on an obscure URL; don't store anything sensitive.
+--
+-- Run once in the Supabase SQL Editor. Safe to re-run.
 -- ============================================================================
 
 create extension if not exists pgcrypto;
@@ -11,8 +15,7 @@ create extension if not exists pgcrypto;
 -- ---------------------------------------------------------------- trades -----
 create table if not exists public.trades (
   id           uuid primary key default gen_random_uuid(),
-  user_id      uuid not null default auth.uid()
-                 references auth.users (id) on delete cascade,
+  user_id      uuid not null default '00000000-0000-0000-0000-000000000000',
   created_at   timestamptz not null default now(),
   setup_met    boolean not null,
   entry_reason text not null default '',
@@ -20,31 +23,15 @@ create table if not exists public.trades (
   amount       numeric not null default 0 check (amount >= 0),
   instrument   text not null default ''
 );
-
-create index if not exists trades_user_created_idx
-  on public.trades (user_id, created_at desc);
+create index if not exists trades_created_idx on public.trades (created_at desc);
 
 alter table public.trades enable row level security;
-
-drop policy if exists "trades_select_own" on public.trades;
-drop policy if exists "trades_insert_own" on public.trades;
-drop policy if exists "trades_update_own" on public.trades;
-drop policy if exists "trades_delete_own" on public.trades;
-
-create policy "trades_select_own" on public.trades
-  for select using (auth.uid() = user_id);
-create policy "trades_insert_own" on public.trades
-  for insert with check (auth.uid() = user_id);
-create policy "trades_update_own" on public.trades
-  for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
-create policy "trades_delete_own" on public.trades
-  for delete using (auth.uid() = user_id);
+drop policy if exists "trades_public_all" on public.trades;
+create policy "trades_public_all" on public.trades for all using (true) with check (true);
 
 -- ----------------------------------------------------------------- rules -----
--- One row per user (user_id is the primary key).
 create table if not exists public.rules (
-  user_id            uuid primary key default auth.uid()
-                       references auth.users (id) on delete cascade,
+  user_id            uuid primary key default '00000000-0000-0000-0000-000000000000',
   daily_stop_loss    numeric not null default 500,
   max_trades_per_day integer not null default 2,
   starting_balance   numeric not null default 50000,
@@ -53,24 +40,13 @@ create table if not exists public.rules (
 );
 
 alter table public.rules enable row level security;
-
-drop policy if exists "rules_select_own" on public.rules;
-drop policy if exists "rules_insert_own" on public.rules;
-drop policy if exists "rules_update_own" on public.rules;
-
-create policy "rules_select_own" on public.rules
-  for select using (auth.uid() = user_id);
-create policy "rules_insert_own" on public.rules
-  for insert with check (auth.uid() = user_id);
-create policy "rules_update_own" on public.rules
-  for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+drop policy if exists "rules_public_all" on public.rules;
+create policy "rules_public_all" on public.rules for all using (true) with check (true);
 
 -- --------------------------------------------------------- copy_accounts -----
--- Accounts for the multi-account copy tab (one "lead", others scaled off it).
 create table if not exists public.copy_accounts (
   id            uuid primary key default gen_random_uuid(),
-  user_id       uuid not null default auth.uid()
-                  references auth.users (id) on delete cascade,
+  user_id       uuid not null default '00000000-0000-0000-0000-000000000000',
   created_at    timestamptz not null default now(),
   firm          text not null default '',
   label         text not null default '',
@@ -80,43 +56,16 @@ create table if not exists public.copy_accounts (
   is_lead       boolean not null default false,
   active        boolean not null default true
 );
-
-create index if not exists copy_accounts_user_idx
-  on public.copy_accounts (user_id, created_at);
+create index if not exists copy_accounts_created_idx on public.copy_accounts (created_at);
 
 alter table public.copy_accounts enable row level security;
-
-drop policy if exists "copy_accounts_select_own" on public.copy_accounts;
-drop policy if exists "copy_accounts_insert_own" on public.copy_accounts;
-drop policy if exists "copy_accounts_update_own" on public.copy_accounts;
-drop policy if exists "copy_accounts_delete_own" on public.copy_accounts;
-
-create policy "copy_accounts_select_own" on public.copy_accounts
-  for select using (auth.uid() = user_id);
-create policy "copy_accounts_insert_own" on public.copy_accounts
-  for insert with check (auth.uid() = user_id);
-create policy "copy_accounts_update_own" on public.copy_accounts
-  for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
-create policy "copy_accounts_delete_own" on public.copy_accounts
-  for delete using (auth.uid() = user_id);
+drop policy if exists "copy_accounts_public_all" on public.copy_accounts;
+create policy "copy_accounts_public_all" on public.copy_accounts for all using (true) with check (true);
 
 -- ----------------------------------------- realtime (instant cross-device) ---
--- Optional but recommended: lets the app receive live updates when you log a
--- trade on another device. Wrapped so re-running doesn't error.
-do $$
-begin
-  alter publication supabase_realtime add table public.trades;
-exception when duplicate_object then null;
-end $$;
-
-do $$
-begin
-  alter publication supabase_realtime add table public.rules;
-exception when duplicate_object then null;
-end $$;
-
-do $$
-begin
-  alter publication supabase_realtime add table public.copy_accounts;
-exception when duplicate_object then null;
-end $$;
+do $$ begin alter publication supabase_realtime add table public.trades;
+exception when duplicate_object then null; end $$;
+do $$ begin alter publication supabase_realtime add table public.rules;
+exception when duplicate_object then null; end $$;
+do $$ begin alter publication supabase_realtime add table public.copy_accounts;
+exception when duplicate_object then null; end $$;

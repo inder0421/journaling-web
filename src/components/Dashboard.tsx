@@ -18,7 +18,6 @@ import {
   saveRules,
   subscribeChanges,
 } from "@/lib/store";
-import { signOut } from "@/lib/useSession";
 
 import Header from "./Header";
 import StatCards from "./StatCards";
@@ -121,7 +120,6 @@ export default function Dashboard({
         isLocal={isLocal}
         email={email}
         onOpenRules={() => setRulesOpen(true)}
-        onSignOut={() => void signOut()}
       />
 
       {error && (

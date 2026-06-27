@@ -20,6 +20,10 @@ const LS_TRADES = "dj.trades.v1";
 const LS_RULES = "dj.rules.v1";
 const LS_ACCOUNTS = "dj.accounts.v1";
 
+/** No-login mode: all rows share one fixed owner id (the app has no auth).
+ *  Data is shared across every device that opens the app. */
+const SHARED_OWNER_ID = "00000000-0000-0000-0000-000000000000";
+
 function lsRead<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
   try {
@@ -77,6 +81,7 @@ export async function addTrade(input: NewTrade): Promise<Trade> {
     const { data, error } = await sb
       .from("trades")
       .insert({
+        user_id: SHARED_OWNER_ID,
         created_at: trade.created_at,
         setup_met: trade.setup_met,
         entry_reason: trade.entry_reason,
@@ -135,12 +140,10 @@ export async function saveRules(rules: Rules): Promise<Rules> {
 
   if (isSupabaseConfigured) {
     const sb = getSupabase()!;
-    const { data: userData } = await sb.auth.getUser();
-    const uid = userData.user?.id;
-    // user_id is the PK; include it so upsert can resolve the conflict target.
+    // Single shared row keyed by the fixed owner id (no auth).
     const { error } = await sb
       .from("rules")
-      .upsert({ user_id: uid, ...clean }, { onConflict: "user_id" });
+      .upsert({ user_id: SHARED_OWNER_ID, ...clean }, { onConflict: "user_id" });
     if (error) throw error;
     return clean;
   }
@@ -184,6 +187,7 @@ export async function addAccount(input: NewCopyAccount): Promise<CopyAccount> {
     const { data, error } = await sb
       .from("copy_accounts")
       .insert({
+        user_id: SHARED_OWNER_ID,
         created_at: acct.created_at,
         firm: acct.firm,
         label: acct.label,

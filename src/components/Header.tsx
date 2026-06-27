@@ -4,12 +4,10 @@ export default function Header({
   isLocal,
   email,
   onOpenRules,
-  onSignOut,
 }: {
   isLocal: boolean;
   email: string | null;
   onOpenRules: () => void;
-  onSignOut: () => void;
 }) {
   return (
     <header className="flex items-center justify-between">
@@ -43,23 +41,6 @@ export default function Header({
             />
           </svg>
         </button>
-        {!isLocal && (
-          <button
-            onClick={onSignOut}
-            aria-label="Sign out"
-            className="rounded-md border border-line bg-surface p-2 text-muted hover:text-fg"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M15 17l5-5-5-5M20 12H9M9 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h3"
-                stroke="currentColor"
-                strokeWidth="1.6"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
-        )}
       </div>
     </header>
   );
