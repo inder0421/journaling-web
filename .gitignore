@@ -12,3 +12,7 @@ npm-debug.log*
 .idea
 .vscode/*
 !.vscode/extensions.json
+
+# Python (desktop/)
+__pycache__/
+*.pyc

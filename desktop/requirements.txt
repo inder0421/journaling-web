@@ -1,0 +1,8 @@
+# No third-party Python packages required — standard library only
+# (tkinter, urllib, xml.etree, json, threading).
+#
+# tkinter ships with most Python installers (Windows/macOS) but is a separate
+# OS package on some Linux distros:
+#   Debian/Ubuntu: sudo apt-get install python3-tk
+#   Fedora:        sudo dnf install python3-tkinter
+#   Arch:          sudo pacman -S tk
