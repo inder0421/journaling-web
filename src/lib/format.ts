@@ -60,6 +60,19 @@ export function formatTime(iso: string): string {
   return timeFmt.format(new Date(iso));
 }
 
+const dateTimeFmt = new Intl.DateTimeFormat('en-US', {
+  weekday: 'short',
+  month: 'short',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+});
+
+/** "Mon, Jul 1, 8:30 AM" from an ISO timestamp. */
+export function formatDateTime(iso: string): string {
+  return dateTimeFmt.format(new Date(iso));
+}
+
 /** Value for a <input type="datetime-local"> from a Date, in local time. */
 export function toDatetimeLocal(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');

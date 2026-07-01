@@ -6,14 +6,16 @@ import { TodayTab } from './components/TodayTab';
 import { AnalyticsTab } from './components/AnalyticsTab';
 import { HistoryTab } from './components/HistoryTab';
 import { RulesTab } from './components/RulesTab';
+import { NewsTab } from './components/news/NewsTab';
 
-type TabKey = 'today' | 'analytics' | 'history' | 'rules';
+type TabKey = 'today' | 'analytics' | 'history' | 'rules' | 'news';
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'today', label: 'Today' },
   { key: 'analytics', label: 'Analytics' },
   { key: 'history', label: 'History' },
   { key: 'rules', label: 'Rules' },
+  { key: 'news', label: 'News' },
 ];
 
 function Shell() {
@@ -52,6 +54,7 @@ function Shell() {
         {tab === 'analytics' && <AnalyticsTab />}
         {tab === 'history' && <HistoryTab />}
         {tab === 'rules' && <RulesTab />}
+        {tab === 'news' && <NewsTab />}
       </main>
     </div>
   );
